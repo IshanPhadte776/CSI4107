@@ -7,6 +7,12 @@ from nltk.stem import PorterStemmer
 from xml.etree import ElementTree as ET
 from collections import defaultdict
 
+tree = ET.parse('SampleDocument.xml')
+
+root = ET.fromstring(tree)
+
+doc_data = defaultdict(set)
+
 def preprocess(text):
     # Parse the XML document
     #root = ET.fromstring(document)
@@ -32,50 +38,14 @@ def preprocess(text):
 
     return tokens
 
-def buildInvertedIndex(doc_id, tokens):
-
-    inverted_index = {}
-
-    for position, token in enumerate(tokens):
-        if token not in inverted_index:
-            inverted_index[token] = [(doc_id, position)]
-        else:
-            inverted_index[token].append((doc_id, position))
-    return inverted_index
-
-# Parse the XML data from the file
-tree = ET.parse('SampleDocument.xml')
-
-print(tree)
-
-
-root = tree.getroot()
-
-print(root)
-# Use a defaultdict to store results with DocID as key and processed text as values
-doc_data = defaultdict(set)
 
 # Process each DOC element
 for doc in root.findall('.//DOC'):
     doc_id = doc.find('DOCNO').text.strip()
     text = doc.find('TEXT').text.strip()
 
-    
-
     # Preprocess the text and store in the set
     processed_text = preprocess(text)
     doc_data[doc_id] = processed_text
 
-# Now, doc_data is a defaultdict with DocID as keys and sets of tokens as values
-# You can access the data like doc_data['AP880212-0001']
 
-# Print the results
-# for doc_id, tokens in doc_data.items():
-#     print(f"DocID: {doc_id}")
-#     print("Tokens:", tokens)
-#     print("\n")
-
-
-inverted_index = buildInvertedIndex(1, processed_tokens)
-
-print(inverted_index)
