@@ -6,14 +6,21 @@ import re
 import nltk
 #Stopwords are like basic non-special words
 from nltk.corpus import stopwords
+nltk.download('stopwords')
 #Imported just incase someone wanted to use it 
 from nltk.stem import PorterStemmer
 #For parsing
 from xml.etree import ElementTree as ET
+
+from bs4 import BeautifulSoup
+
+from lxml import etree
+
 #For Dictionaries
 from collections import defaultdict
 
 #Part 1
+print("Part 1 running...")
 def preprocess(text):
     # Remove markup that is not part of the text
     text = re.sub(r'<.*?>', '', text)
@@ -33,6 +40,7 @@ def preprocess(text):
     return tokens
 
 #Part 2
+print("Part 2 running...")
 #Creates the inverted index for 1 document
 def buildInvertedIndex(doc_id, tokens):
     inverted_index = {}
@@ -50,19 +58,25 @@ def buildInvertedIndex(doc_id, tokens):
 
 # Parse the XML data from the file
 #I needed to slightly modify the documents the professor gave us cause I kept running into errors with her code, please us the SampleDocument.xml file for right now
-tree = ET.parse('SampleDocument.xml')
+tree = BeautifulSoup(open("coll/AP880212", 'r').read().replace("\n", ""), 'lxml')
 
 #Get the root
-root = tree.getroot()
+
+# If multiple parents, wrap in another tag as root
 
 # Use a defaultdict to store results with DocID as key and processed text as values
 doc_data = defaultdict(set)
 
 # Process each DOC element
-for doc in root.findall('.//DOC'):
+for doc in tree('doc'):
     #Find the docid and text
-    doc_id = doc.find('DOCNO').text.strip()
-    text = doc.find('TEXT').text.strip()
+    doc_id = doc.find('docno').string.strip()
+    print(doc_id)
+
+    try:
+        text = doc.find('text').string.strip()
+    except AttributeError:
+        text = ""
 
     # Preprocess the text and store in the set
     processed_text = preprocess(text)
@@ -83,3 +97,4 @@ for doc_id, tokens in doc_data.items():
 print(inverted_index)
 
 #Part 3 Goes Here
+print("Part 3 running...")
