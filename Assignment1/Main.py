@@ -76,26 +76,28 @@ def idf(term, N, frequency):
     return math.log((N - frequency[term] + 0.5) / (frequency[term] + 0.5) + 1)
 
 
-def bm25(doc, query, N, doc_freq, avgdl):
+def bm25(length, doc_id, query, N, doc_freq, avgdl, inverted_index):
     k1 = 1.5
     b = 0.75
     score = 0
-    length = len(doc)
+
     for word in query:
-        if word in doc:
-            f = doc.count(word)
+        if word in inverted_index:
+            f = sum(1 for doc, _ in inverted_index[word] if doc == doc_id)
             idf_score = idf(word, N, doc_freq)
             score += idf_score * (f * (k1 + 1)) / \
                 (f + k1 * (1 - b + b * length / avgdl))
+
     return score
 
-
 def main():
-    directory = '../coll'  # Replace with your folder path
+    directory = '../coll'  
     results_file = 'Results.txt'
-    tag = 3
-
+    inverted_index = {}
     all_scores = []
+    query = preprocess("Accusations of Cheating by Contractors on U.S. Defense Projects")
+    doc_data = defaultdict(set)
+
 
     for filename in os.listdir(directory):
         filepath = os.path.join(directory, filename)
@@ -105,51 +107,50 @@ def main():
         tree = BeautifulSoup(
             open(filepath, 'r').read().replace("\n", ""), 'lxml')
         # root = tree.getroot()
-        doc_data = defaultdict(set)
 
         # Process each DOC element
         for doc in tree('doc'):
             # Find the docid and text
             doc_id = doc.find('docno').string.strip()
-            # print(doc_id)
 
-        try:
-            text = doc.find('text').string.strip()
-        except AttributeError:
-            text = ""
+            try:
+                text = doc.find('text').string.strip()
+                processed_text = preprocess(text)
 
-        # Preprocess the text and store in the set
-        processed_text = preprocess(text)
-        doc_data[doc_id] = processed_text
+                if any(term in processed_text for term in query):
+                    doc_data[doc_id] = processed_text
 
-        # Global Inverted Index
-        inverted_index = {}
-        # For every Doc
-        for doc_id, tokens in doc_data.items():
-            doc_index = buildInvertedIndex(doc_id, tokens)
-            # Merge doc_index into inverted_index
-            for token, postings in doc_index.items():
-                if token not in inverted_index:
-                    inverted_index[token] = postings
-                else:
-                    inverted_index[token].extend(postings)
+                doc_index = buildInvertedIndex(doc_id, processed_text)
 
-        N = len(doc_data)
-        avgdl = sum(len(doc) for doc in doc_data.values()) / N
-        doc_freq = defaultdict(int)
-        for doc in doc_data.values():
-            for term in set(doc):
-                doc_freq[term] += 1
+                for token, postings in doc_index.items():
+                    if token not in inverted_index:
+                        inverted_index[token] = postings
+                    else:
+                        inverted_index[token].extend(postings)
 
-        query = preprocess("Accusations of Cheating by Contractors on U.S. Defense Projects")
-        scores = {doc_id: bm25(doc, query, N, doc_freq, avgdl)for doc_id, doc in doc_data.items()}
+            except AttributeError:
+                text = ""
+           
+    print("out")
+    #Number of documents in collection
+    N = len(doc_data)
 
-        ranked_docs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    #Average length of a document
+    avgdl = sum(len(doc) for doc in doc_data.values()) / N
+    doc_freq = defaultdict(int)
 
-        for rank, (doc_id, score) in enumerate(ranked_docs[:1000], 1):all_scores.append(f"{1} Q0 {doc_id} {rank} {score:.4f} {tag}")
+    #Fill dictionary with word frequencies from all documents
+    for doc in doc_data.values():
+        for word in set(doc):
+            doc_freq[word] += 1
 
-        with open(results_file, 'w') as f:
-         for line in all_scores:
+    scores = {doc_id: bm25(len(doc_data[doc_id]),doc_id, query, N, doc_freq, avgdl, inverted_index) for doc_id in doc_data}
+
+    ranked_docs = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    #what is the tag idek i put three as a place holder
+    for rank, (doc_id, score) in enumerate(ranked_docs[:1000], 1):all_scores.append(f"{1} Q0 {doc_id} {rank} {score:.4f} {3}")
+    with open(results_file, 'w') as f:
+        for line in all_scores:
             f.write(line + '\n')
 
 
