@@ -1,3 +1,0 @@
-nltk
-beautifulsoup4
-scikit-learn
