@@ -20,7 +20,7 @@ def preprocess(text):
     return tokens
 
 def process_document(filepath):
-    tree = BeautifulSoup(open(filepath, 'r').read().replace("\n", ""), 'lxml')
+    tree = BeautifulSoup(open(filepath, 'r').read().replace("\n", " "), 'lxml')
 
     doc_data = defaultdict(set)
 
