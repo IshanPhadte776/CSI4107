@@ -113,6 +113,8 @@ def main():
 
     directory = './coll' 
     doc_data, inverted_index = process_documents(directory)
+
+    print("Here")
     
     query = preprocess("Accusations of Cheating by Contractors on U.S. Defense Projects")
     
