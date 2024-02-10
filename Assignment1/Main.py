@@ -27,7 +27,7 @@ def build_inverted_index(doc_id, tokens):
 
 # Part 3: Process Documents and Build Global Inverted Index
 def process_document(filepath):
-    tree = BeautifulSoup(open(filepath, 'r').read().replace("\n", ""), 'lxml')
+    tree = BeautifulSoup(open(filepath, 'r').read().replace("\n", " "), 'lxml')
     
     doc_data = defaultdict(list)
     
@@ -111,7 +111,7 @@ def perform_search(query, doc_data, inverted_index):
 # Main Function
 def main():
 
-    directory = './coll' 
+    directory = '../coll' 
     doc_data, inverted_index = process_documents(directory)
 
     print("Here")
