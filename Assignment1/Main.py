@@ -1,85 +1,121 @@
-#The Code Shouldn't take more than 5 Seconds to Run 
-
-#regular expression (regex) module in Python. Patterns used to match character combinations in strings.
 import re
-#Natural Language Toolkit (NLTK)
-import nltk
-#Stopwords are like basic non-special words
+import os
+import concurrent.futures
 from nltk.corpus import stopwords
-#Imported just incase someone wanted to use it 
-from nltk.stem import PorterStemmer
-#For parsing
-from xml.etree import ElementTree as ET
-#For Dictionaries
+from bs4 import BeautifulSoup
 from collections import defaultdict
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
-#Part 1
+# Part 1: Preprocessing
 def preprocess(text):
-    # Remove markup that is not part of the text
     text = re.sub(r'<.*?>', '', text)
-
-    # Tokenization - Split the text into words
     tokens = re.findall(r'\b\w+\b', text.lower())
-
-    # Remove stopwords
     stop_words = set(stopwords.words('english'))
     tokens = [word for word in tokens if word not in stop_words]
-
-    #Don't use Porter Stemmer, it cuts some words off incorrectly, (Cut officers to offic)
-    #Using Porter does feel to speed up the code 
-    # porter = PorterStemmer()
-    # tokens = [porter.stem(word) for word in tokens]
-
     return tokens
 
-#Part 2
-#Creates the inverted index for 1 document
-def buildInvertedIndex(doc_id, tokens):
+# Part 2: Build Inverted Index for a Document
+def build_inverted_index(doc_id, tokens):
     inverted_index = {}
-
-    #For every token(word)    
     for position, token in enumerate(tokens):
-        #Add the token to inverted index / position
         if token not in inverted_index:
             inverted_index[token] = [(doc_id, position)]
         else:
             inverted_index[token].append((doc_id, position))
-
     return inverted_index
 
+# Part 3: Process Documents and Build Global Inverted Index
+def process_document(filepath):
+    tree = BeautifulSoup(open(filepath, 'r').read().replace("\n", ""), 'lxml')
+    
+    doc_data = defaultdict(list)
+    
+    for doc in tree('doc'):
+        doc_id = doc.find('docno').string.strip()
+        
+        try:
+            text = doc.find('text').string.strip()
+        except AttributeError:
+            text = ""
+        
+        processed_text = preprocess(text)
+        doc_data[doc_id] = processed_text
+    
+    return doc_data
 
-# Parse the XML data from the file
-#I needed to slightly modify the documents the professor gave us cause I kept running into errors with her code, please us the SampleDocument.xml file for right now
-tree = ET.parse('SampleDocument.xml')
+def process_documents(directory):
+    doc_data = defaultdict(list)
+    filepaths = [os.path.join(directory, filename) for filename in os.listdir(directory)]
 
-#Get the root
-root = tree.getroot()
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        results = list(executor.map(process_document, filepaths))
 
-# Use a defaultdict to store results with DocID as key and processed text as values
-doc_data = defaultdict(set)
+    for result in results:
+        for doc_id, tokens in result.items():
+            doc_data[doc_id] = tokens
 
-# Process each DOC element
-for doc in root.findall('.//DOC'):
-    #Find the docid and text
-    doc_id = doc.find('DOCNO').text.strip()
-    text = doc.find('TEXT').text.strip()
+    inverted_index = {}
+    for doc_id, tokens in doc_data.items():
+        doc_index = build_inverted_index(doc_id, tokens)
+        for token, postings in doc_index.items():
+            if token not in inverted_index:
+                inverted_index[token] = postings
+            else:
+                inverted_index[token].extend(postings)
 
-    # Preprocess the text and store in the set
-    processed_text = preprocess(text)
-    doc_data[doc_id] = processed_text
+    return doc_data, inverted_index
 
-#Global Inverted Index    
-inverted_index = {}
-#For every Doc
-for doc_id, tokens in doc_data.items():
-    doc_index = buildInvertedIndex(doc_id, tokens)
-    # Merge doc_index into inverted_index
-    for token, postings in doc_index.items():
-        if token not in inverted_index:
-            inverted_index[token] = postings
-        else:
-            inverted_index[token].extend(postings)
+def perform_search(query, doc_data, inverted_index):
+    query = " ".join(query)
+    
+    # Process the query using the same preprocessing as the documents
+    processed_query = preprocess(query)
 
-print(inverted_index)
+    relevant_docs = set()
+    
+    # Retrieve relevant documents from the inverted index
+    for term in processed_query:
+        if term in inverted_index:
+            relevant_docs.update([posting[0] for posting in inverted_index[term]])
 
-#Part 3 Goes Here
+    # Convert relevant documents to a list for further processing
+    relevant_docs = list(relevant_docs)
+
+    # Prepare data for the TF-IDF vectorizer
+    all_documents = [" ".join(doc_data[doc_id]) for doc_id in relevant_docs]
+    
+    vectorizer = TfidfVectorizer()
+    tfidf_matrix = vectorizer.fit_transform(all_documents)
+    query_vector = vectorizer.transform([query])
+    
+    # Calculate cosine similarities only for relevant documents
+    cosine_similarities = cosine_similarity(query_vector, tfidf_matrix).flatten()
+    
+    # Sort and write results to 'Results.txt'
+    sorted_documents = sorted(zip(relevant_docs, cosine_similarities), key=lambda x: x[1], reverse=True)
+    
+    counter = 0
+    query_number = 0
+    all_results = []
+    
+    for doc_id, score in sorted_documents:
+        all_results.append(f"{query_number} , Q0 , {doc_id} {counter} {score:.4f}, run_name")
+        counter += 1
+
+    with open('Results.txt', 'w') as file:
+        for result in all_results:
+            file.write(result + '\n')
+
+# Main Function
+def main():
+
+    directory = './coll' 
+    doc_data, inverted_index = process_documents(directory)
+    
+    query = preprocess("Accusations of Cheating by Contractors on U.S. Defense Projects")
+    
+    perform_search(query, doc_data, inverted_index)
+
+if __name__ == "__main__":
+    main()
