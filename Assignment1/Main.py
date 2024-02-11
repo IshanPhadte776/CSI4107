@@ -45,7 +45,6 @@ def process_document(filepath):
     return doc_data
 
 def process_documents(directory):
-    all_results = []
     doc_data = defaultdict(list)
     filepaths = [os.path.join(directory, filename) for filename in os.listdir(directory)]
 
